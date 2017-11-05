@@ -3,3 +3,12 @@ This is an incomplete clone of the Power Grid board game.
 It currently reaches Phase 4 (Building) and doesn't do anything else.  You
 can't actually play a game.  But it's neat, and there's a (small) chance that
 I implemented a lot of features but ignored this README.  You have been warned.
+
+Runtime requirements:
+    o pygame
+        - Graphics, somehow contained so that logic is separate, but leaks here
+          and there.
+
+Build time requirements:
+    o ImageMagick
+        - Used to convert svg to png.

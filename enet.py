@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 import time
 import math
@@ -12,7 +13,7 @@ from lib.ppmarket import PowerPlantMarket
 from lib.handler import Handler, HandlerMain
 from lib.player import PlayerList
 from lib.resources import Coal, Oil, Garbage, Nuclear
-from lib.util import sin_variate, split_line
+from lib.util import sin_variate, split_line, camel2underscore
 from lib.preprogrammed import PreProgrammedCommands
 
 def draw_city(display, font, city, labels=True, active=False):
@@ -157,35 +158,40 @@ def draw_resmarket(display, font, rmkt):
         cost_label = font.render(str(16), 1, (255, 255, 0))
         display.blit(cost_label, (xoffset + 42, yoffset + 42))
 
-def draw_ppmarket(display, font, ppmkt):
+def draw_ppmarket(display, font, ppmkt, plant_images):
     yoffset = 12
     xoffset = 1024 + 48 + 72 + 12
     framecolor = (255, 255, 255)
 
     pygame.draw.rect(display, (0, 0, 0), (xoffset, yoffset, 156, 324))
 
-    def draw_plant(xoff, yoff, active=False):
+    def draw_plant(pp, xoff, yoff, active=False):
+        pimage = plant_images.get(camel2underscore(pp.__class__.__name__))
+        if pimage is not None:
+            display.blit(pimage, (xoff, yoff))
+
         rect = [xoff, yoff, 72, 72]
         if active:
             sinusoidal = sin_variate(0, 255, 2000)
             label_color = (255, sinusoidal, 0)
         else:
             label_color = (255, 255, 0)
-        label_top = font.render(str(pplant), 1, label_color)
-        label_bot = font.render(pplant.production_str(), 1, label_color)
+        label_top = font.render("[" + str(pp.price) + "]", 1, label_color)
+        label_bot = font.render(pp.production_str(), 1, label_color)
         pygame.draw.rect(display, framecolor, rect, 1)
 
-        label_top_xoffset = xoff + 36 - label_top.get_width() / 2
+        label_top_xoffset = xoff + 72 - label_top.get_width()
         display.blit(label_top, (label_top_xoffset, yoff))
         label_bot_xoffset = xoff + 36 - label_bot.get_width() / 2
-        display.blit(label_bot, (label_bot_xoffset, yoff + 36))
+        label_bot_yoffset = yoff + 72 - label_bot.get_height()
+        display.blit(label_bot, (label_bot_xoffset, label_bot_yoffset))
 
     (in_auction, pindex) = ppmkt.in_auction
     for (n, pplant) in enumerate(ppmkt.actual):
         active = in_auction and pindex == n
-        draw_plant(xoffset, yoffset + 84 * n, active=active)
+        draw_plant(pplant, xoffset, yoffset + 84 * n, active=active)
     for (n, pplant) in enumerate(ppmkt.future):
-        draw_plant(xoffset + 84, yoffset + 84 * n)
+        draw_plant(pplant, xoffset + 84, yoffset + 84 * n)
 
 def draw_players(display, font, players):
     yoff = (12 + 72) * 4 + 12
@@ -217,7 +223,6 @@ def draw_fps(display, font, game):
     diff = update - game.last_update
     fps = 1 / diff
 
-    #if int(update) != int(game.last_update):
     l = font.render("{:.2f}".format(fps), 1, (255, 255, 0))
     pygame.draw.rect(display, (0, 0, 0), ((0, 0), l.get_size()))
     display.blit(l, (0, 0))
@@ -240,6 +245,17 @@ class ConsoleWidget:
         label = self.font.render(buf, 1, (255, 255, 0))
         self.display.blit(label, self.pos)
         self.label_size = label.get_size()
+
+def load_plant_images():
+    def image_load(pname):
+        im = pygame.image.load(os.path.join('svg', "{}.png".format(pname)))
+        im.convert()
+
+        return im
+
+    plant_types = ["coal", "oil", "hybrid", "garbage", "nuclear", "green"]
+    plant_list = [p + "_plant" for p in plant_types]
+    return {p: image_load(p) for p in plant_list}
 
 def main():
     pstack = PowerPlantStack(stage3_cb=None)
@@ -267,6 +283,8 @@ def main():
     prompt_widget.draw(current_handler.prompt)
 
     preprogrammed = PreProgrammedCommands(sys.argv)
+    plant_images = load_plant_images()
+    print(plant_images)
 
     while True:
         event = pygame.event.poll()
@@ -280,7 +298,7 @@ def main():
             prompt_widget.draw(current_handler.prompt)
 
             draw_resmarket(display, font, game.rmkt)
-            draw_ppmarket(display, font, game.pmkt)
+            draw_ppmarket(display, font, game.pmkt, plant_images)
             draw_players(display, font, game.players)
             pygame.display.update()
 

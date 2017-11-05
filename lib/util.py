@@ -1,4 +1,5 @@
 # Mathy utility code
+import re
 import time
 import math
 
@@ -79,3 +80,7 @@ def cwise_sort(orig, plist):
         return r
 
     return sorted(plist, key=cwise_key)
+
+def camel2underscore(s):
+    s = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", s)
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s.lower())
