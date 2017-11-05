@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=invalid-name
+import sys
 
 from lib.util import cwise_sort
 
@@ -7,9 +8,17 @@ class MapVertex:
     def __init__(self, name, pos):
         self.name = name
         self.pos = pos
+        self.buildings = 0
+        self.building_colors = []
 
     def __repr__(self):
         return self.name
+
+    def get_colors(self):
+        ret = [(255, 255, 255)] * 3
+        for (n, c) in enumerate(self.building_colors):
+            ret[n] = c
+        return ret
 
 class MapEdge:
     def __init__(self, fro, to, cost):
@@ -43,9 +52,6 @@ class Map:
         assert e.to in self.vlist
         self.elist.append(e)
 
-    def draw(self):
-        pass
-
     def city(self, name, pos):
         if self.translation:
             pos = (pos[0] + self.translation[0], pos[1] + self.translation[1])
@@ -57,6 +63,11 @@ class Map:
 
     def road(self, fro, to, cost):
         self.edge(MapEdge(self.get_vertex(fro), self.get_vertex(to), cost))
+
+    def index(self, city):
+        for (n, c) in enumerate(self.vlist):
+            if c.name == city.name:
+                return n
 
     def get_reachable_cities(self, fromcity):
         """
@@ -74,23 +85,34 @@ class Map:
         clist_sorted = cwise_sort(fromcity.pos, clist)
 
         # Scrape away the extra coordinates
-        print(clist_sorted)
         return [e[2] for e in clist_sorted]
 
-    def get_reachable_cities_from_active(self):
-        return self.get_reachable_cities(self.vlist[self.active_city])
-
     def set_active_city(self, city):
-        for (n, c) in enumerate(self.vlist):
-            if c.name == city.name:
-                self.active_city = n
-                return
+        self.active_city = self.index(city)
 
     def set_next_city(self, city):
-        for (n, c) in enumerate(self.vlist):
-            if c.name == city.name:
-                self.next_city = n
-                return
+        self.next_city = self.index(city)
+
+    def get_active_city(self):
+        return self.vlist[self.active_city]
+
+    def set_active_to_next(self):
+        self.active_city = self.next_city
 
     def first(self):
         return self.vlist[0]
+
+    def build(self, city, color):
+        self.vlist[self.index(city)].buildings += 1
+        self.vlist[self.index(city)].building_colors.append(color)
+
+    def building_cost(self, city, step=1):
+        nbuildings = self.vlist[self.index(city)].buildings
+        if nbuildings == 0:
+            return 10
+        elif nbuildings == 1 and step > 1:
+            return 15
+        elif nbuildings == 2 and step > 2:
+            return 20
+
+        return sys.maxsize

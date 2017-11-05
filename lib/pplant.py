@@ -23,7 +23,12 @@ class PowerPlant:
         return self.price < other.price
 
     def __repr__(self):
-        return "{}[{:02d}]".format(self.type, self.price)
+        return "[{:02d}] {}{}=>{}".format(
+            self.price,
+            self.type,
+            self.cost,
+            self.production
+        )
 
     def production_str(self):
         return "{} => {}".format(self.cost, self.production)

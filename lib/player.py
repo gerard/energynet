@@ -5,14 +5,17 @@ from lib.resources import Coal, Oil, Garbage, Nuclear
 
 @functools.total_ordering
 class Player:
-    def __init__(self, pid):
+    def __init__(self, pid, color):
         self.pid = pid
+        self.color = color
         self.active = False
         self.cash = 50
-        self.plants = []
         self.auction_rights = True      # Cleared each turn
         self.raise_rights = True        # Cleared each auction
+
+        self.plants = []
         self.resources = {Coal: 0, Oil: 0, Garbage: 0, Nuclear: 0}
+        self.buildings = []
 
     def __eq__(self, other):
         return self.worth() == other.worth()
@@ -30,12 +33,14 @@ class Player:
         return psum + self.cash / 1000000
 
     def __repr__(self):
-        return "P{pid}[${cash}|{ar}{pr}]{plants}".format(
+        return "P{pid}[${cash:3}|C{cities:2}]{ar}{pr}{more}{plants}".format(
             pid=self.pid,
             cash=self.cash,
-            plants="|".join([repr(p) for p in self.plants]),
+            more="/" if self.plants else "",
+            plants="/".join([repr(p) for p in self.plants]),
             ar="A" if self.auction_rights else "",
-            pr="P" if self.raise_rights else ""
+            pr="P" if self.raise_rights else "",
+            cities=len(self.buildings)
         )
 
 class PlayerList:
@@ -48,8 +53,17 @@ class PlayerList:
     The indexes are integers strictly smaller than the number of players.
     The class uses strings as identifiers on purpose.
     """
+
+    PALETTE = [     # The color palette used to represent the players
+        (0, 255, 0),
+        (0, 0, 255),
+        (128, 128, 0)
+    ]
+
     def __init__(self, n):
-        self.list = [Player(str(k + 1)) for k in range(n)]
+        self.list = [
+            Player(str(k + 1), PlayerList.PALETTE[k]) for k in range(n)
+        ]
         random.shuffle(self.list)
         self.active_auctioneer_pid = 0
         self.active_participant_pid = 0
@@ -94,6 +108,9 @@ class PlayerList:
 
     def get_cash(self, who):
         return self.list[self.index(who)].cash
+
+    def get_color(self, who):
+        return self.list[self.index(who)].color
 
     def remove_auction_rights(self, who):
         self.list[self.index(who)].raise_rights = False
@@ -159,3 +176,7 @@ class PlayerList:
     def player_buys_resource(self, who, resource, amount, price):
         self.list[self.index(who)].cash -= price
         self.list[self.index(who)].resources[resource] += amount
+
+    def player_buys_city(self, who, city, price):
+        self.list[self.index(who)].cash -= price
+        self.list[self.index(who)].buildings.append(city)

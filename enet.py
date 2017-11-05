@@ -17,13 +17,11 @@ from lib.util import sin_variate, split_line, camel2underscore
 from lib.preprogrammed import PreProgrammedCommands
 
 def draw_city(display, font, city, labels=True, active=False):
-    color_a = (0, 0, 255)
-    color_b = (0, 255, 0)
-    color_c = (255, 0, 0)
+    colors = city.get_colors()
     rect = pygame.Rect(city.pos[0] - 8, city.pos[1] - 8, 16, 16)
-    pygame.draw.arc(display, color_a, rect, 0, 2*math.pi/3, 6)
-    pygame.draw.arc(display, color_b, rect, 2*math.pi/3, 4*math.pi/3, 6)
-    pygame.draw.arc(display, color_c, rect, 4*math.pi/3, 0, 6)
+    pygame.draw.arc(display, colors[0], rect, 0, 2*math.pi/3, 6)
+    pygame.draw.arc(display, colors[1], rect, 2*math.pi/3, 4*math.pi/3, 6)
+    pygame.draw.arc(display, colors[2], rect, 4*math.pi/3, 0, 6)
 
     if labels or active:
         g_comp = sin_variate(0, 255, 2000) if active else 255
@@ -194,19 +192,34 @@ def draw_ppmarket(display, font, ppmkt, plant_images):
         draw_plant(pplant, xoffset + 84, yoffset + 84 * n)
 
 def draw_players(display, font, players):
-    yoff = (12 + 72) * 4 + 12
     xoff = 1024 + 48 + 72 + 12
+    yoff = (12 + 72) * 4 + 12
 
-    label_color = (255, 255, 255)
+    # Clear
+    pygame.draw.rect(display, (0, 0, 0), ((xoff, yoff), (1366, 768)))
+
     for p in players.list:
-        l = font.render(str(p), 1, label_color)
+        xoff = 1024 + 48 + 72 + 12
+        pstr = str(p).split("/")
+        l = font.render(pstr[0], 1, (255, 255, 255))
         lh = l.get_height()
         lw = l.get_width()
-        pygame.draw.rect(display, (0, 0, 0), ((xoff, yoff), (1366, lh)))
+
+        # Player color hint
+        pygame.draw.rect(display, p.color, ((xoff, yoff), (lh, lh)))
+        xoff += lh
+
         if p.active:
-            pygame.draw.rect(display, (255, 0, 0), ((xoff, yoff), (lw, lh)))
+            # Red background indicates that player needs to act next
+            bcolor = (sin_variate(0, 255, 2000), 0, 0)
+            pygame.draw.rect(display, bcolor, ((xoff, yoff), (lw, lh)))
+
         display.blit(l, (xoff, yoff))
         yoff += l.get_height()
+        for pstr_plant in pstr[1:]:
+            l = font.render(pstr_plant, 1, (255, 255, 255))
+            display.blit(l, (xoff, yoff))
+            yoff += l.get_height()
 
 def draw_map(display, font, game):
     pygame.draw.rect(display, (0, 0, 0), (0, 0, 1024 + 48, 768))
@@ -284,7 +297,6 @@ def main():
 
     preprogrammed = PreProgrammedCommands(sys.argv)
     plant_images = load_plant_images()
-    print(plant_images)
 
     while True:
         event = pygame.event.poll()
@@ -314,7 +326,15 @@ def main():
             # Don't update anything if the event is not recognized
             continue
 
-        print("{} {:>32} {}".format(stack_op, str(new), handler_stack))
+        if stack_op == Handler.HANDLER_NOP:
+            continue
+
+        print("[{:.03f}]: {} {:>26} {}".format(
+            time.time(),
+            stack_op,
+            str(new) if new else "",
+            handler_stack
+        ))
         if stack_op == Handler.HANDLER_PUSH:
             assert new != None
             handler_stack.append(new)

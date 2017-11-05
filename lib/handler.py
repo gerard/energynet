@@ -1,3 +1,4 @@
+import re
 import sys
 import pygame       # Need event mapping to get rid of this
 
@@ -34,8 +35,8 @@ class Handler:
 
     def __repr__(self):
         return "{}[{}]".format(
-            self.__class__.__name__,
-            hex(id(self))[-8:]
+            re.sub("Handler", "", self.__class__.__name__),
+            re.sub("0x", "", hex(id(self)))
         )
 
     def reactivate(self):   # pylint: disable=no-self-use
@@ -245,6 +246,9 @@ class HandlerResBuy(Handler):
             self.extrastatus = "Resource quota exceeded"
             self.amount -= 1
 
+        # We rerun the dry_run of the buy to display the correct amount of
+        # resources being bought in case we exceeded a limit
+        self.game.rmkt[self.resource].buy(self.amount, dry_run=True)
         self.set_statusprompt()
         return self.chain(ev, Handler.HANDLER_NOP)
 
@@ -312,8 +316,9 @@ class HandlerCityBuy(Handler):
             self.buyer = self.game.players.first()
 
         # "Randomly" pick the first city to be the active city.
-        self.game.gmap.set_active_city(self.game.gmap.first())
-        self.rcities = self.game.gmap.get_reachable_cities_from_active()
+        self.active_city = self.game.gmap.first()
+        self.game.gmap.set_active_city(self.active_city)
+        self.rcities = self.game.gmap.get_reachable_cities(self.active_city)
         self.game.gmap.set_next_city(self.rcities[0])
 
         self.status = "City acquisition stage started"
@@ -329,22 +334,48 @@ class HandlerCityBuy(Handler):
         self.game.gmap.set_next_city(self.rcities[0])
 
     def set_statusprompt(self):
-        # TODO: This will blow up on a city that has only one road.
-        self.prompt = "Select (a){}, select (d){} or travel to (w){})".format(
-            self.rcities[-1],
-            self.rcities[1],
-            self.rcities[0]
-        )
+        if len(self.rcities) == 1:
+            self.prompt = "Build (b){}, travel (w){} or (p)ass".format(
+                self.active_city,
+                self.rcities[0],
+            )
+        else:
+            self.prompt = (
+                "Select (a){}, (d){}, build (b){}, travel (w){} or (p)ass"
+            ).format(
+                self.rcities[-1],
+                self.rcities[1],
+                self.active_city,
+                self.rcities[0],
+            )
 
     def __call__(self, ev):
-        if ev.key == pygame.K_a:
+        if ev.key == pygame.K_a and len(self.rcities) > 1:
             self.arrange_reachable_cities(-1)
-        elif ev.key == pygame.K_d:
+        elif ev.key == pygame.K_d and len(self.rcities) > 1:
             self.arrange_reachable_cities(1)
         elif ev.key == pygame.K_w:
-            self.game.gmap.active_city = self.game.gmap.next_city
-            self.rcities = self.game.gmap.get_reachable_cities_from_active()
+            self.game.gmap.set_active_to_next()
+            self.active_city = self.game.gmap.get_active_city()
+            self.rcities = self.game.gmap.get_reachable_cities(self.active_city)
             self.game.gmap.set_next_city(self.rcities[0])
+        elif ev.key == pygame.K_b:
+            price = self.game.gmap.building_cost(self.active_city)
+            if price == sys.maxsize:
+                self.status = "City can't be constructed"
+            if price > self.game.players.get_cash(self.buyer):
+                self.status = "P{} doesn't have enough cash".format(self.buyer)
+            else:
+                self.status = "P{} pays ${} to construct on {}".format(
+                    self.buyer,
+                    price,
+                    self.active_city.name
+                )
+                buyer_color = self.game.players.get_color(self.buyer)
+                self.game.gmap.build(self.active_city, buyer_color)
+                self.game.players.player_buys_city(self.buyer,
+                                                   self.active_city,
+                                                   price)
 
         self.set_statusprompt()
         return self.chain(ev, Handler.HANDLER_NOP)
