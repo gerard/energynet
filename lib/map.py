@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # pylint: disable=invalid-name
 import sys
+import heapq
+import functools
 
 from lib.util import cwise_sort
 
+@functools.total_ordering
 class MapVertex:
     def __init__(self, name, pos):
         self.name = name
@@ -13,6 +16,12 @@ class MapVertex:
 
     def __repr__(self):
         return self.name
+
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __lt__(self, other):
+        return self.name < other.name
 
     def get_colors(self):
         ret = [(255, 255, 255)] * 3
@@ -93,6 +102,7 @@ class Map:
     def set_next_city(self, city):
         self.next_city = self.index(city)
 
+    # Should just return cityname, not the whole object
     def get_active_city(self):
         return self.vlist[self.active_city]
 
@@ -106,13 +116,68 @@ class Map:
         self.vlist[self.index(city)].buildings += 1
         self.vlist[self.index(city)].building_colors.append(color)
 
-    def building_cost(self, city, step=1):
+    def connection_cost(self, network, city):
+        """
+        This is just Dijkstra with the "twist" that some edges will have cost
+        zero (if both vertex are already in the network).  Notice that the
+        heapq module does not have decrease-key, so we heapify instead.
+        """
+        costs = {}
+        h = []
+        for v in self.vlist:
+            if v.name == network[0]:
+                costs[v.name] = 0
+            else:
+                costs[v.name] = sys.maxsize
+            heapq.heappush(h, (costs[v.name], v))
+
+        while h:
+            (_, v) = heapq.heappop(h)
+            for e in self.elist:
+                # Swap if it comes in reverse order (just for convenience)
+                if e.to.name == v.name:
+                    (e.to, e.fro) = (e.fro, e.to)
+
+                if e.fro.name != v.name:
+                    continue
+
+                if e.to.name in network and e.fro.name in network:
+                    cost = 0
+                else:
+                    cost = e.cost
+
+                w = e.to
+                new_cost = costs[v.name] + cost
+                if new_cost < costs[w.name]:
+                    costs[w.name] = new_cost
+                    for (n, (_, hw)) in enumerate(h):
+                        if hw.name == w.name:
+                            h[n] = (new_cost, hw)
+            heapq.heapify(h)
+
+        import json
+        print(json.dumps(costs, indent=4))
+        return costs[city.name]
+
+    def building_cost(self, city, network, step=1):
+        """
+        The building cost consist of the connection cost (from existing
+        network) plus the cost of the "house".  The connection cost is simply
+        calculated with a shortest-path algorithm.
+        """
+        if network:
+            ccost = self.connection_cost(network, city)
+        else:
+            # First city has no connection cost (first city => network is an
+            # emtpy list)
+            ccost = 0
+
         nbuildings = self.vlist[self.index(city)].buildings
         if nbuildings == 0:
-            return 10
+            return 10 + ccost
         elif nbuildings == 1 and step > 1:
-            return 15
+            return 15 + ccost
         elif nbuildings == 2 and step > 2:
-            return 20
+            return 20 + ccost
 
         return sys.maxsize

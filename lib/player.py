@@ -15,7 +15,7 @@ class Player:
 
         self.plants = []
         self.resources = {Coal: 0, Oil: 0, Garbage: 0, Nuclear: 0}
-        self.buildings = []
+        self.network = []
 
     def __eq__(self, other):
         return self.worth() == other.worth()
@@ -24,13 +24,9 @@ class Player:
         return self.worth() < other.worth()
 
     def worth(self):
-        # Used to determine play order
-        psum = 0
-        for p in self.plants:
-            psum += p.price
-
-        # Cash should only be considered in case of tie on the powerplant worth
-        return psum + self.cash / 1000000
+        # Used to establish player order.  There's no possibility for tie since
+        # all power plant have distinct prices.
+        return max([p.price for p in self.plants])
 
     def __repr__(self):
         return "P{pid}[${cash:3}|C{cities:2}]{ar}{pr}{more}{plants}".format(
@@ -40,7 +36,7 @@ class Player:
             plants="/".join([repr(p) for p in self.plants]),
             ar="A" if self.auction_rights else "",
             pr="P" if self.raise_rights else "",
-            cities=len(self.buildings)
+            cities=len(self.network)
         )
 
 class PlayerList:
@@ -50,8 +46,11 @@ class PlayerList:
     Please note: it's important to not confuse indexes with pids.  The pids can
     be anything where equality can be established.  The pid is also the handle
     given to class users.
-    The indexes are integers strictly smaller than the number of players.
-    The class uses strings as identifiers on purpose.
+    The indexes are integers strictly smaller than the number of players which
+    are indexes in the player list handled by this class.  A player index will
+    change as the game progresses (it's tied to player order), a pid will not.
+    The class uses strings as pids on purpose, even if that string is a single
+    digit.
     """
 
     PALETTE = [     # The color palette used to represent the players
@@ -76,17 +75,25 @@ class PlayerList:
             if p.pid == who:
                 return n
 
+    def set_active(self, idx):
+        for (n, _) in enumerate(self.list):
+            self.list[n].active = (n == idx)
+
     def first(self):
+        self.set_active(0)
         return self.list[0].pid
 
     def last(self):
+        self.set_active(len(self.list) - 1)
         return self.list[-1].pid
 
     def next(self, who):
-        if who == self.last():
+        if who == self.list[-1].pid:
             return None
 
-        return self.list[self.index(who) + 1].pid
+        idx = self.index(who) + 1
+        self.set_active(idx)
+        return self.list[idx].pid
 
     def canbuy(self, who, resource, howmuch=1):
         p = self.list[self.index(who)]
@@ -111,6 +118,9 @@ class PlayerList:
 
     def get_color(self, who):
         return self.list[self.index(who)].color
+
+    def get_network(self, who):
+        return self.list[self.index(who)].network
 
     def remove_auction_rights(self, who):
         self.list[self.index(who)].raise_rights = False
@@ -179,4 +189,4 @@ class PlayerList:
 
     def player_buys_city(self, who, city, price):
         self.list[self.index(who)].cash -= price
-        self.list[self.index(who)].buildings.append(city)
+        self.list[self.index(who)].network.append(city)

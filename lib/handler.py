@@ -360,11 +360,14 @@ class HandlerCityBuy(Handler):
             self.rcities = self.game.gmap.get_reachable_cities(self.active_city)
             self.game.gmap.set_next_city(self.rcities[0])
         elif ev.key == pygame.K_b:
-            price = self.game.gmap.building_cost(self.active_city)
+            existing_network = self.game.players.get_network(self.buyer)
+            price = self.game.gmap.building_cost(self.active_city, existing_network)
             if price == sys.maxsize:
                 self.status = "City can't be constructed"
             if price > self.game.players.get_cash(self.buyer):
-                self.status = "P{} doesn't have enough cash".format(self.buyer)
+                self.status = "P{} doesn't have enough cash[${}]".format(
+                    self.buyer, price
+                )
             else:
                 self.status = "P{} pays ${} to construct on {}".format(
                     self.buyer,
@@ -374,8 +377,16 @@ class HandlerCityBuy(Handler):
                 buyer_color = self.game.players.get_color(self.buyer)
                 self.game.gmap.build(self.active_city, buyer_color)
                 self.game.players.player_buys_city(self.buyer,
-                                                   self.active_city,
+                                                   self.active_city.name,
                                                    price)
+        elif ev.key == pygame.K_p:
+            self.buyer = self.game.players.next(self.buyer)
+            if not self.buyer:
+                nh = HandlerPressEnter(
+                    self.game,
+                    "All players done buying cities"
+                )
+                return self.chain(ev, Handler.HANDLER_REPLACE, nh)
 
         self.set_statusprompt()
         return self.chain(ev, Handler.HANDLER_NOP)
